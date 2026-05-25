@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>IPL Analytics Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+  header {
+    background: linear-gradient(135deg, #1e3a5f, #0f4c81);
+    padding: 16px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 1.5rem; color: #f59e0b; letter-spacing: 1px; }
+  header .cricket-icon { font-size: 1.8rem; }
+
+  /* 3-dot nav */
+  .nav-dots-btn {
+    background: none; border: none; cursor: pointer;
+    display: flex; flex-direction: column; gap: 5px; padding: 8px;
+    border-radius: 8px; transition: background 0.2s;
+  }
+  .nav-dots-btn:hover { background: rgba(255,255,255,0.1); }
+  .nav-dots-btn span {
+    display: block; width: 6px; height: 6px;
+    background: #f59e0b; border-radius: 50%;
+  }
+  .nav-dropdown {
+    position: absolute; top: 64px; right: 24px;
+    background: #1e293b; border: 1px solid #334155;
+    border-radius: 12px; padding: 8px 0;
+    min-width: 220px; z-index: 200;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    display: none;
+  }
+  .nav-dropdown.open { display: block; }
+  .nav-item {
+    display: block; width: 100%; padding: 11px 20px;
+    background: none; border: none; color: #94a3b8;
+    font-size: 0.9rem; font-weight: 600; cursor: pointer;
+    text-align: left; transition: all 0.15s;
+  }
+  .nav-item:hover { background: #334155; color: #e2e8f0; }
+  .nav-item.active { color: #f59e0b; background: rgba(15,76,129,0.3); }
+  .nav-divider { height: 1px; background: #334155; margin: 4px 0; }
+
+  /* current tab indicator in header */
+  .current-tab-label {
+    font-size: 0.85rem; color: #94a3b8; font-weight: 600;
+  }
+
+  .tabs { display: none; } /* hidden, replaced by dropdown */
+  .tab-btn { display: none; }
+
+  .tab-content { display: none; padding: 30px 40px; }
+  .tab-content.active { display: block; }
+
+  .card {
+    background: #1e293b; border-radius: 12px; padding: 24px;
+    margin-bottom: 20px; border: 1px solid #334155;
+  }
+  .card h2 { color: #f59e0b; margin-bottom: 6px; font-size: 1.2rem; }
+  .card p { color: #64748b; font-size: 0.85rem; margin-bottom: 20px; }
+
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  label { font-size: 0.8rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  select, input {
+    padding: 10px 12px; border-radius: 8px;
+    background: #0f172a; border: 1px solid #334155;
+    color: #e2e8f0; font-size: 0.9rem; outline: none;
+    transition: border 0.2s;
+  }
+  select:focus, input:focus { border-color: #0f4c81; }
+  .search-input { width: 100%; }
+
+  .btn {
+    margin-top: 20px; padding: 12px 28px; border: none;
+    border-radius: 8px; background: linear-gradient(135deg, #0f4c81, #1e6bb8);
+    color: white; font-size: 0.95rem; font-weight: 700;
+    cursor: pointer; transition: all 0.2s; letter-spacing: 0.5px;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(15,76,129,0.5); }
+  .btn:active { transform: translateY(0); }
+
+  .result-box {
+    margin-top: 20px; padding: 20px; border-radius: 10px;
+    background: #0f172a; border: 1px solid #334155; display: none;
+  }
+  .result-box.show { display: block; }
+  .result-value { font-size: 2rem; font-weight: 800; color: #f59e0b; }
+  .result-label { font-size: 0.85rem; color: #64748b; margin-top: 4px; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-top: 16px; }
+  .stat-card {
+    background: #1e293b; border-radius: 8px; padding: 14px;
+    text-align: center; border: 1px solid #334155;
+  }
+  .stat-card .val { font-size: 1.4rem; font-weight: 700; color: #38bdf8; }
+  .stat-card .lbl { font-size: 0.75rem; color: #64748b; margin-top: 4px; }
+
+  .dist-bar { margin-top: 16px; }
+  .dist-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .dist-row .run-label { width: 30px; text-align: right; font-weight: 700; color: #f59e0b; }
+  .dist-row .bar-wrap { flex: 1; background: #0f172a; border-radius: 4px; height: 22px; overflow: hidden; }
+  .dist-row .bar-fill { height: 100%; background: linear-gradient(90deg, #0f4c81, #38bdf8); border-radius: 4px; transition: width 0.6s ease; display: flex; align-items: center; padding-left: 8px; font-size: 0.75rem; }
+
+  .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; }
+  .badge-green { background: #064e3b; color: #34d399; }
+  .badge-red { background: #450a0a; color: #f87171; }
+  .badge-yellow { background: #451a03; color: #fbbf24; }
+
+  canvas { max-height: 280px; }
+
+  .error { color: #f87171; font-size: 0.9rem; margin-top: 10px; }
+
+  /* Loading spinner */
+  .btn.loading { opacity: 0.7; pointer-events: none; }
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .timeout-msg { color: #f87171; font-size:0.85rem; margin-top:10px; display:none; }
+
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+  .compare-col { background: #0f172a; border-radius: 10px; padding: 16px; border: 1px solid #334155; }
+  .compare-col h3 { color: #f59e0b; font-size: 1rem; margin-bottom: 12px; text-align: center; }
+  .compare-col.blue h3 { color: #38bdf8; }
+  .compare-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid #1e293b; font-size: 0.88rem; }
+  .compare-row:last-child { border-bottom: none; }
+  .compare-row .lbl { color: #64748b; }
+  .compare-row .val { font-weight: 700; color: #e2e8f0; }
+  .compare-row .val.win { color: #34d399; }
+  .h2h-box { margin-top: 16px; background: #1e293b; border-radius: 8px; padding: 14px; border: 1px solid #334155; }
+  .h2h-box h4 { color: #f59e0b; margin-bottom: 10px; font-size: 0.9rem; }
+  @media (max-width: 600px) { .compare-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <span class="cricket-icon">🏏</span>
+    <h1>IPL Analytics Dashboard</h1>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span class="current-tab-label" id="current-tab-label">🎯 Wicket Prediction</span>
+    <button class="nav-dots-btn" onclick="toggleNav()" title="Navigation">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</header>
+
+<div class="nav-dropdown" id="nav-dropdown">
+  <button class="nav-item active" onclick="switchTab('wicket',this)">🎯 Wicket Prediction</button>
+  <button class="nav-item" onclick="switchTab('runs',this)">🏃 Runs Per Ball</button>
+  <button class="nav-item" onclick="switchTab('score',this)">📊 Score Predictor</button>
+  <div class="nav-divider"></div>
+  <button class="nav-item" onclick="switchTab('bowler',this)">🎳 Bowler Analyzer</button>
+  <button class="nav-item" onclick="switchTab('batter',this)">🏏 Batter Analyzer</button>
+  <button class="nav-item" onclick="switchTab('matchup',this)">⚔️ Matchup Model</button>
+  <div class="nav-divider"></div>
+  <button class="nav-item" onclick="switchTab('win',this)">🏆 Win Predictor</button>
+  <button class="nav-item" onclick="switchTab('compare',this)">🔀 Compare</button>
+  <button class="nav-item" onclick="switchTab('auction',this)">🏷️ Auction Profile</button>
+</div>
+
+<!-- ── TAB 1: Wicket Prediction ── -->
+<div id="tab-wicket" class="tab-content active">
+  <div class="card">
+    <h2>🎯 Wicket Prediction</h2>
+    <p>Predict the probability of a wicket falling on the current ball.</p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Inning</label>
+        <select id="w-inning"><option value="1">1st Inning</option><option value="2">2nd Inning</option></select>
+      </div>
+      <div class="form-group">
+        <label>Batting Team</label>
+        <select id="w-batting">{% for t in teams %}<option>{{ t }}</option>{% endfor %}</select>
+      </div>
+      <div class="form-group">
+        <label>Bowling Team</label>
+        <select id="w-bowling">{% for t in teams %}<option>{{ t }}</option>{% endfor %}</select>
+      </div>
+      <div class="form-group">
+        <label>Over (0-19)</label>
+        <input type="number" id="w-over" value="10" min="0" max="19"/>
+      </div>
+      <div class="form-group">
+        <label>Ball (1-6)</label>
+        <input type="number" id="w-ball" value="3" min="1" max="6"/>
+      </div>
+      <div class="form-group">
+        <label>Batter</label>
+        <input class="search-input" id="w-batter" list="batter-list" placeholder="Search batter..." autocomplete="off"/>
+      </div>
+      <div class="form-group">
+        <label>Bowler</label>
+        <input class="search-input" id="w-bowler" list="bowler-list" placeholder="Search bowler..." autocomplete="off"/>
+      </div>
+      <div class="form-group">
+        <label>Current Score</label>
+        <input type="number" id="w-cumruns" value="80" min="0"/>
+      </div>
+      <div class="form-group">
+        <label>Wickets Fallen</label>
+        <input type="number" id="w-cumwickets" value="2" min="0" max="10"/>
+      </div>
+      <div class="form-group">
+        <label>Balls Bowled</label>
+        <input type="number" id="w-balls" value="60" min="0"/>
+      </div>
+    </div>
+    <button class="btn" onclick="predictWicket()">Predict Wicket</button>
+    <div class="result-box" id="wicket-result">
+      <div class="result-value" id="wicket-prob"></div>
+      <div class="result-label">Wicket Probability</div>
+      <div style="margin-top:10px" id="wicket-badge"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB 2: Runs Per Ball ── -->
+<div id="tab-runs" class="tab-content">
+  <div class="card">
+    <h2>🏃 Runs Per Ball Prediction</h2>
+    <p>Predict how many runs will be scored on the current delivery.</p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Inning</label>
+        <select id="r-inning"><option value="1">1st Inning</option><option value="2">2nd Inning</option></select>
+      </div>
+      <div class="form-group">
+        <label>Batting Team</label>
+        <select id="r-batting">{% for t in teams %}<option>{{ t }}</option>{% endfor %}</select>
+      </div>
+      <div class="form-group">
+        <label>Bowling Team</label>
+        <select id="r-bowling">{% for t in teams %}<option>{{ t }}</option>{% endfor %}</select>
+      </div>
+      <div class="form-group">
+        <label>Over (0-19)</label>
+        <input type="number" id="r-over" value="15" min="0" max="19"/>
+      </div>
+      <div class="form-group">
+        <label>Ball (1-6)</label>
+        <input type="number" id="r-ball" value="3" min="1" max="6"/>
+      </div>
+      <div class="form-group">
+        <label>Batter</label>
+        <input class="search-input" id="r-batter" list="batter-list" placeholder="Search batter..." autocomplete="off"/>
+      </div>
+      <div class="form-group">
+        <label>Bowler</label>
+        <input class="search-input" id="r-bowler" list="bowler-list" placeholder="Search bowler..." autocomplete="off"/>
+      </div>
+      <div class="form-group">
+        <label>Current Score</label>
+        <input type="number" id="r-cumruns" value="120" min="0"/>
+      </div>
+      <div class="form-group">
+        <label>Wickets Fallen</label>
+        <input type="number" id="r-cumwickets" value="3" min="0" max="10"/>
+      </div>
+      <div class="form-group">
+        <label>Balls Bowled</label>
+        <input type="number" id="r-balls" value="90" min="0"/>
+      </div>
+    </div>
+    <button class="btn" onclick="predictRuns()">Predict Runs</button>
+    <div class="result-box" id="runs-result">
+      <div class="result-value" id="runs-pred"></div>
+      <div class="result-label">Predicted Runs on This Ball</div>
+      <div class="dist-bar" id="runs-dist"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB 3: Score Predictor ── -->
+<div id="tab-score" class="tab-content">
+  <div class="card">
+    <h2>📊 Total Score Predictor</h2>
+    <p>Predict the final innings score based on current match situation.</p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Batting Team</label>
+        <select id="s-batting">{% for t in teams %}<option>{{ t }}</option>{% endfor %}</select>
+      </div>
+      <div class="form-group">
+        <label>Bowling Team</label>
+        <select id="s-bowling">{% for t in teams %}<option>{{ t }}</option>{% endfor %}</select>
+      </div>
+      <div class="form-group">
+        <label>Current Over (0-19)</label>
+        <input type="number" id="s-over" value="10" min="0" max="19"/>
+      </div>
+      <div class="form-group">
+        <label>Ball (1-6)</label>
+        <input type="number" id="s-ball" value="3" min="1" max="6"/>
+      </div>
+      <div class="form-group">
+        <label>Current Score</label>
+        <input type="number" id="s-cumruns" value="85" min="0"/>
+      </div>
+      <div class="form-group">
+        <label>Wickets Fallen</label>
+        <input type="number" id="s-cumwickets" value="2" min="0" max="10"/>
+      </div>
+      <div class="form-group">
+        <label>Balls Bowled</label>
+        <input type="number" id="s-balls" value="63" min="0"/>
+      </div>
+    </div>
+    <button class="btn" onclick="predictScore()">Predict Final Score</button>
+    <div class="result-box" id="score-result">
+      <div class="result-value" id="score-pred"></div>
+      <div class="result-label">Predicted Final Score</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB 4: Bowler Analyzer ── -->
+<div id="tab-bowler" class="tab-content">
+  <div class="card">
+    <h2>🎳 Bowler Performance Analyzer</h2>
+    <p>Deep dive into any bowler's IPL career statistics.</p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Select Bowler</label>
+        <input class="search-input" id="b-bowler" list="bowler-list" placeholder="Search bowler..." autocomplete="off"/>
+      </div>
+    </div>
+    <button class="btn" onclick="analyzeBowler()">Analyze Bowler</button>
+    <div class="result-box" id="bowler-result">
+      <div class="stat-grid" id="bowler-stats"></div>
+      <div style="margin-top:24px"><canvas id="bowler-chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB 5: Matchup Model ── -->
+<div id="tab-matchup" class="tab-content">
+  <div class="card">
+    <h2>⚔️ Batsman vs Bowler Matchup</h2>
+    <p>Predict runs a batsman will score against a specific bowler.</p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Batsman</label>
+        <input class="search-input" id="m-batter" list="batter-list" placeholder="Search batter..." autocomplete="off"/>
+      </div>
+      <div class="form-group">
+        <label>Bowler</label>
+        <input class="search-input" id="m-bowler" list="bowler-list" placeholder="Search bowler..." autocomplete="off"/>
+      </div>
+      <div class="form-group">
+        <label>Balls to Face</label>
+        <input type="number" id="m-balls" value="12" min="1"/>
+      </div>
+    </div>
+    <button class="btn" onclick="predictMatchup()">Predict Matchup</button>
+    <div class="result-box" id="matchup-result">
+      <div class="result-value" id="matchup-pred"></div>
+      <div class="result-label">Predicted Runs</div>
+      <div class="stat-grid" id="matchup-hist" style="margin-top:16px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB 6: Batter Analyzer ── -->
+<div id="tab-batter" class="tab-content">
+  <div class="card">
+    <h2>🏏 Batter Performance Analyzer</h2>
+    <p>Deep dive into any batter's IPL career statistics.</p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Select Batter</label>
+        <input class="search-input" id="ba-batter" list="batter-list" placeholder="Search batter..." autocomplete="off"/>
+      </div>
+    </div>
+    <button class="btn" onclick="analyzeBatter()">Analyze Batter</button>
+    <div class="result-box" id="batter-result">
+      <div class="stat-grid" id="batter-stats"></div>
+      <div style="margin-top:24px"><canvas id="batter-chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB 7: Win Predictor ── -->
+<div id="tab-win" class="tab-content">
+  <div class="card">
+    <h2>🏆 Win Predictor</h2>
+    <p>Predict which team wins — after 1st innings or during a chase.</p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Team 1 (Batting First)</label>
+        <select id="win-team1">{% for t in teams %}<option>{{ t }}</option>{% endfor %}</select>
+      </div>
+      <div class="form-group">
+        <label>Team 2 (Chasing)</label>
+        <select id="win-team2">{% for t in teams %}<option>{{ t }}</option>{% endfor %}</select>
+      </div>
+      <div class="form-group">
+        <label>1st Innings Score / Target</label>
+        <input type="number" id="win-target" value="170" min="1"/>
+      </div>
+      <div class="form-group">
+        <label>Mode</label>
+        <select id="win-mode" onchange="toggleChaseFields()">
+          <option value="first">After 1st Innings</option>
+          <option value="chase">During Chase</option>
+        </select>
+      </div>
+    </div>
+    <div id="chase-fields" style="display:none" class="form-grid" style="margin-top:14px">
+      <div class="form-group">
+        <label>Current Score (2nd Inn)</label>
+        <input type="number" id="win-score" value="80" min="0"/>
+      </div>
+      <div class="form-group">
+        <label>Overs Completed</label>
+        <input type="number" id="win-over" value="10" min="0" max="20" step="0.1"/>
+      </div>
+      <div class="form-group">
+        <label>Wickets Lost</label>
+        <input type="number" id="win-wickets" value="2" min="0" max="10"/>
+      </div>
+    </div>
+    <button class="btn" onclick="predictWin()">Predict Winner</button>
+    <div class="result-box" id="win-result">
+      <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:8px">
+        <div class="stat-card" style="flex:1">
+          <div class="val" id="win-team1-pct" style="color:#f59e0b"></div>
+          <div class="lbl" id="win-team1-name"></div>
+        </div>
+        <div class="stat-card" style="flex:1">
+          <div class="val" id="win-team2-pct" style="color:#38bdf8"></div>
+          <div class="lbl" id="win-team2-name"></div>
+        </div>
+      </div>
+      <div style="margin-top:12px;font-size:0.85rem;color:#64748b" id="win-details"></div>
+    </div>
+  </div>
+</div>
+
+<datalist id="batter-list">{% for b in batters %}<option value="{{ b }}">{% endfor %}</datalist>
+
+<!-- ── TAB 8: Compare ── -->
+<div id="tab-compare" class="tab-content">
+  <div class="card">
+    <h2>🔀 Player Comparison</h2>
+    <p>Compare two batters, two bowlers, or a batter vs bowler head-to-head.</p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Compare Mode</label>
+        <select id="cmp-mode" onchange="updateCompareForm()">
+          <option value="batter_batter">🏏 Batter vs Batter</option>
+          <option value="bowler_bowler">🎳 Bowler vs Bowler</option>
+          <option value="batter_bowler">⚔️ Batter vs Bowler</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label id="cmp-label1">Player 1</label>
+        <input class="search-input" id="cmp-p1" list="batter-list" placeholder="Search player..." autocomplete="off"/>
+      </div>
+      <div class="form-group">
+        <label id="cmp-label2">Player 2</label>
+        <input class="search-input" id="cmp-p2" list="batter-list" placeholder="Search player..." autocomplete="off"/>
+      </div>
+    </div>
+    <button class="btn" onclick="runCompare()">Compare</button>
+    <div class="result-box" id="compare-result">
+      <div class="compare-grid" id="compare-cols"></div>
+      <div style="margin-top:20px"><canvas id="compare-chart"></canvas></div>
+      <div class="h2h-box" id="h2h-box" style="display:none">
+        <h4>⚔️ Head-to-Head Record</h4>
+        <div class="stat-grid" id="h2h-stats"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<datalist id="bowler-list">{% for b in bowlers %}<option value="{{ b }}">{% endfor %}</datalist>
+
+<!-- ── TAB 9: Auction Profile ── -->
+<div id="tab-auction" class="tab-content">
+  <div class="card">
+    <h2>🏷️ Auction Profile</h2>
+    <p>Enter any player name to get their stats, 5 similar players, and 5 key opponents.</p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Player Name</label>
+        <input class="search-input" id="auc-player" list="batter-list" placeholder="Search player..." autocomplete="off"/>
+      </div>
+    </div>
+    <button class="btn" onclick="loadAuctionProfile()">Get Profile</button>
+    <div class="result-box" id="auction-result">
+      <div id="auction-role" style="margin-bottom:16px"></div>
+
+      <!-- Batter section -->
+      <div id="auc-batter-section" style="display:none">
+        <h3 style="color:#f59e0b;margin-bottom:10px">🏏 Batting Stats</h3>
+        <div class="stat-grid" id="auc-batter-stats"></div>
+
+        <h3 style="color:#f59e0b;margin:18px 0 10px">🔁 10 Similar Batters</h3>
+        <div id="auc-similar-batters"></div>
+
+        <h3 style="color:#f87171;margin:18px 0 10px">⚠️ Top 10 Tough Bowlers Against This Batter</h3>
+        <div id="auc-tough-bowlers"></div>
+      </div>
+
+      <!-- Bowler section -->
+      <div id="auc-bowler-section" style="display:none">
+        <h3 style="color:#38bdf8;margin-bottom:10px">🎳 Bowling Stats</h3>
+        <div class="stat-grid" id="auc-bowler-stats"></div>
+
+        <h3 style="color:#38bdf8;margin:18px 0 10px">🔁 10 Similar Bowlers</h3>
+        <div id="auc-similar-bowlers"></div>
+
+        <h3 style="color:#f87171;margin:18px 0 10px">⚠️ Top 10 Batters Who Score Most Against This Bowler</h3>
+        <div id="auc-tough-batters"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleNav() {
+  document.getElementById('nav-dropdown').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.nav-dots-btn') && !e.target.closest('.nav-dropdown'))
+    document.getElementById('nav-dropdown').classList.remove('open');
+});
+
+function switchTab(name, el) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (el) {
+    el.classList.add('active');
+    document.getElementById('current-tab-label').textContent = el.textContent.trim();
+  }
+  document.getElementById('nav-dropdown').classList.remove('open');
+}
+
+function setLoading(btn, loading) {
+  if (loading) {
+    btn.dataset.orig = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner"></span>Loading...';
+    btn.classList.add('loading');
+  } else {
+    btn.innerHTML = btn.dataset.orig || btn.innerHTML;
+    btn.classList.remove('loading');
+  }
+}
+
+function showErr(boxId, e) {
+  const box = document.getElementById(boxId);
+  box.classList.add('show');
+  const msg = e && e.name === 'AbortError' ? 'Request timed out. Server is taking too long.' : (e?.message || 'Something went wrong.');
+  box.insertAdjacentHTML('beforeend', `<div class="error" style="margin-top:10px">⚠️ ${msg}</div>`);
+}
+
+async function post(url, data) {
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+      signal: controller.signal
+    });
+    clearTimeout(tid);
+    return res.json();
+  } catch(e) {
+    clearTimeout(tid);
+    throw e;
+  }
+}
+
+async function predictWicket() {
+  const btn = event.target;
+  setLoading(btn, true);
+  try {
+    const data = {
+      inning: document.getElementById('w-inning').value,
+      batting_team: document.getElementById('w-batting').value,
+      bowling_team: document.getElementById('w-bowling').value,
+      over: document.getElementById('w-over').value,
+      ball: document.getElementById('w-ball').value,
+      batter: document.getElementById('w-batter').value,
+      bowler: document.getElementById('w-bowler').value,
+      cum_runs: document.getElementById('w-cumruns').value,
+      cum_wickets: document.getElementById('w-cumwickets').value,
+      balls_bowled: document.getElementById('w-balls').value
+    };
+    const res = await post('/predict/wicket', data);
+    const box = document.getElementById('wicket-result');
+    document.getElementById('wicket-prob').textContent = res.probability + '%';
+    const badge = res.prediction === 'Wicket'
+      ? `<span class="badge badge-red">🔴 ${res.prediction}</span>`
+      : `<span class="badge badge-green">🟢 ${res.prediction}</span>`;
+    document.getElementById('wicket-badge').innerHTML = badge;
+    box.classList.add('show');
+  } catch(e) { showErr('wicket-result', e); } finally { setLoading(btn, false); }
+}
+
+async function predictRuns() {
+  const btn = event.target;
+  setLoading(btn, true);
+  try {
+    const data = {
+      inning: document.getElementById('r-inning').value,
+      batting_team: document.getElementById('r-batting').value,
+      bowling_team: document.getElementById('r-bowling').value,
+      over: document.getElementById('r-over').value,
+      ball: document.getElementById('r-ball').value,
+      batter: document.getElementById('r-batter').value,
+      bowler: document.getElementById('r-bowler').value,
+      cum_runs: document.getElementById('r-cumruns').value,
+      cum_wickets: document.getElementById('r-cumwickets').value,
+      balls_bowled: document.getElementById('r-balls').value
+    };
+    const res = await post('/predict/runs', data);
+    document.getElementById('runs-pred').textContent = res.predicted_runs + ' runs';
+    const dist = document.getElementById('runs-dist');
+    dist.innerHTML = Object.entries(res.distribution).map(([r, p]) =>
+      `<div class="dist-row">
+        <span class="run-label">${r}</span>
+        <div class="bar-wrap"><div class="bar-fill" style="width:${p}%">${p}%</div></div>
+      </div>`
+    ).join('');
+    document.getElementById('runs-result').classList.add('show');
+  } catch(e) { showErr('runs-result', e); } finally { setLoading(btn, false); }
+}
+
+async function predictScore() {
+  const btn = event.target;
+  setLoading(btn, true);
+  try {
+    const data = {
+      batting_team: document.getElementById('s-batting').value,
+      bowling_team: document.getElementById('s-bowling').value,
+      over: document.getElementById('s-over').value,
+      ball: document.getElementById('s-ball').value,
+      cum_runs: document.getElementById('s-cumruns').value,
+      cum_wickets: document.getElementById('s-cumwickets').value,
+      balls_bowled: document.getElementById('s-balls').value
+    };
+    const res = await post('/predict/score', data);
+    document.getElementById('score-pred').textContent = Math.round(res.predicted_score);
+    document.getElementById('score-result').classList.add('show');
+  } catch(e) { showErr('score-result', e); } finally { setLoading(btn, false); }
+}
+
+let bowlerChart = null;
+let batterChart = null;
+
+function toggleChaseFields() {
+  const mode = document.getElementById('win-mode').value;
+  document.getElementById('chase-fields').style.display = mode === 'chase' ? 'grid' : 'none';
+}
+
+async function analyzeBatter() {
+  const btn = event.target;
+  setLoading(btn, true);
+  try {
+  const batter = document.getElementById('ba-batter').value;
+  const res = await post('/analyze/batter', { batter });
+  if (res.error) { showErr('batter-result', new Error(res.error)); return; }
+
+  document.getElementById('batter-stats').innerHTML = [
+    { val: res.runs, lbl: 'Total Runs' },
+    { val: res.balls, lbl: 'Balls Faced' },
+    { val: res.fours, lbl: 'Fours' },
+    { val: res.sixes, lbl: 'Sixes' },
+    { val: res.dismissals, lbl: 'Dismissals' },
+    { val: res.strike_rate, lbl: 'Strike Rate' },
+    { val: res.average, lbl: 'Average' },
+    { val: res.dot_pct + '%', lbl: 'Dot Ball %' }
+  ].map(s => `<div class="stat-card"><div class="val">${s.val}</div><div class="lbl">${s.lbl}</div></div>`).join('');
+
+  const labels = res.over_breakdown.map(o => 'Over ' + (o.over + 1));
+  const runsData = res.over_breakdown.map(o => o.runs);
+  const srData = res.over_breakdown.map(o => o.sr);
+
+  if (batterChart) batterChart.destroy();
+  batterChart = new Chart(document.getElementById('batter-chart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Runs', data: runsData, backgroundColor: 'rgba(56,189,248,0.6)', borderColor: '#38bdf8', borderWidth: 1 },
+        { label: 'Strike Rate', data: srData, backgroundColor: 'rgba(245,158,11,0.6)', borderColor: '#f59e0b', borderWidth: 1, type: 'line', yAxisID: 'sr' }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#e2e8f0' } } },
+      scales: {
+        x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+        y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+        sr: { position: 'right', ticks: { color: '#f59e0b' }, grid: { display: false } }
+      }
+    }
+  });
+  document.getElementById('batter-result').classList.add('show');
+  } catch(e) { showErr('batter-result', e); } finally { setLoading(btn, false); }
+}
+
+async function predictWin() {
+  const btn = event.target;
+  setLoading(btn, true);
+  try {
+    const mode = document.getElementById('win-mode').value;
+    const data = {
+      team1: document.getElementById('win-team1').value,
+      team2: document.getElementById('win-team2').value,
+      target: document.getElementById('win-target').value,
+      mode
+    };
+    if (mode === 'chase') {
+      data.current_score = document.getElementById('win-score').value;
+      data.current_over = document.getElementById('win-over').value;
+      data.wickets_lost = document.getElementById('win-wickets').value;
+    }
+    const res = await post('/predict/win', data);
+    if (res.error) { showErr('win-result', new Error(res.error)); return; }
+    document.getElementById('win-team1-pct').textContent = res.team1_win_pct + '%';
+    document.getElementById('win-team1-name').textContent = res.team1 + ' Win Chance';
+    document.getElementById('win-team2-pct').textContent = res.team2_win_pct + '%';
+    document.getElementById('win-team2-name').textContent = res.team2 + ' Win Chance';
+    let details = '';
+    if (res.mode === 'chase') {
+      details = `Runs needed: ${res.runs_needed} off ${res.balls_left} balls &nbsp;|&nbsp; RRR: ${res.rrr}`;
+    } else {
+      details = `Based on ${res.sample_size} historical matches with similar 1st innings scores.`;
+    }
+    document.getElementById('win-details').innerHTML = details;
+    document.getElementById('win-result').classList.add('show');
+  } catch(e) { showErr('win-result', e); } finally { setLoading(btn, false); }
+}
+async function analyzeBowler() {
+  const btn = event.target;
+  setLoading(btn, true);
+  try {
+  const bowler = document.getElementById('b-bowler').value;
+  const res = await post('/analyze/bowler', { bowler });
+  if (res.error) { showErr('bowler-result', new Error(res.error)); return; }
+
+  document.getElementById('bowler-stats').innerHTML = [
+    { val: res.wickets, lbl: 'Wickets' },
+    { val: res.overs, lbl: 'Overs' },
+    { val: res.runs_conceded, lbl: 'Runs Conceded' },
+    { val: res.economy, lbl: 'Economy' },
+    { val: res.strike_rate || 'N/A', lbl: 'Strike Rate' },
+    { val: res.wicket_probability + '%', lbl: 'Wicket Prob/Ball' }
+  ].map(s => `<div class="stat-card"><div class="val">${s.val}</div><div class="lbl">${s.lbl}</div></div>`).join('');
+
+  const labels = res.over_breakdown.map(o => 'Over ' + (o.over + 1));
+  const runsData = res.over_breakdown.map(o => o.runs);
+  const wicketsData = res.over_breakdown.map(o => o.wickets);
+
+  if (bowlerChart) bowlerChart.destroy();
+  bowlerChart = new Chart(document.getElementById('bowler-chart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Runs', data: runsData, backgroundColor: 'rgba(56,189,248,0.6)', borderColor: '#38bdf8', borderWidth: 1 },
+        { label: 'Wickets', data: wicketsData, backgroundColor: 'rgba(245,158,11,0.6)', borderColor: '#f59e0b', borderWidth: 1 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#e2e8f0' } } },
+      scales: {
+        x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+        y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+      }
+    }
+  });
+  document.getElementById('bowler-result').classList.add('show');
+  } catch(e) { showErr('bowler-result', e); } finally { setLoading(btn, false); }
+}
+
+let compareChart = null;
+
+function updateCompareForm() {
+  const mode = document.getElementById('cmp-mode').value;
+  const p1List = mode === 'bowler_bowler' ? 'bowler-list' : 'batter-list';
+  const p2List = mode === 'batter_batter' ? 'batter-list' : 'bowler-list';
+  document.getElementById('cmp-p1').setAttribute('list', p1List);
+  document.getElementById('cmp-p1').placeholder = mode === 'bowler_bowler' ? 'Search bowler...' : 'Search batter...';
+  document.getElementById('cmp-label1').textContent = mode === 'bowler_bowler' ? 'Bowler 1' : 'Batter 1';
+  document.getElementById('cmp-p2').setAttribute('list', p2List);
+  document.getElementById('cmp-p2').placeholder = mode === 'batter_batter' ? 'Search batter...' : 'Search bowler...';
+  document.getElementById('cmp-label2').textContent = mode === 'batter_batter' ? 'Batter 2' : 'Bowler';
+}
+
+async function runCompare() {
+  const btn = event.target;
+  setLoading(btn, true);
+  try {
+  const mode = document.getElementById('cmp-mode').value;
+  const res = await post('/compare', {
+    mode,
+    player1: document.getElementById('cmp-p1').value,
+    player2: document.getElementById('cmp-p2').value
+  });
+  if (res.error) { showErr('compare-result', new Error(res.error)); return; }
+
+  const box = document.getElementById('compare-result');
+  const h2hBox = document.getElementById('h2h-box');
+  box.classList.add('show');
+  h2hBox.style.display = 'none';
+
+  if (mode === 'batter_batter') {
+    const fields = [
+      { key: 'runs', lbl: 'Total Runs', higher: true },
+      { key: 'balls', lbl: 'Balls Faced', higher: false },
+      { key: 'fours', lbl: 'Fours', higher: true },
+      { key: 'sixes', lbl: 'Sixes', higher: true },
+      { key: 'dismissals', lbl: 'Dismissals', higher: false },
+      { key: 'strike_rate', lbl: 'Strike Rate', higher: true },
+      { key: 'average', lbl: 'Average', higher: true },
+      { key: 'dot_pct', lbl: 'Dot Ball %', higher: false },
+      { key: 'boundary_pct', lbl: 'Boundary %', higher: true }
+    ];
+    renderCompare(res.a, res.b, fields);
+    renderCompareChart(res.a, res.b, ['Runs', 'SR', 'Avg', 'Fours', 'Sixes'],
+      [res.a.runs, res.a.strike_rate, res.a.average, res.a.fours, res.a.sixes],
+      [res.b.runs, res.b.strike_rate, res.b.average, res.b.fours, res.b.sixes]);
+
+  } else if (mode === 'bowler_bowler') {
+    const fields = [
+      { key: 'wickets', lbl: 'Wickets', higher: true },
+      { key: 'overs', lbl: 'Overs', higher: true },
+      { key: 'runs_conceded', lbl: 'Runs Conceded', higher: false },
+      { key: 'economy', lbl: 'Economy', higher: false },
+      { key: 'strike_rate', lbl: 'Strike Rate', higher: false },
+      { key: 'average', lbl: 'Average', higher: false },
+      { key: 'dot_pct', lbl: 'Dot Ball %', higher: true },
+      { key: 'wicket_prob', lbl: 'Wicket Prob %', higher: true },
+      { key: 'fours', lbl: 'Fours Conceded', higher: false },
+      { key: 'sixes', lbl: 'Sixes Conceded', higher: false }
+    ];
+    renderCompare(res.a, res.b, fields);
+    renderCompareChart(res.a, res.b, ['Wickets', 'Economy', 'SR', 'Fours', 'Sixes'],
+      [res.a.wickets, res.a.economy, res.a.strike_rate || 0, res.a.fours, res.a.sixes],
+      [res.b.wickets, res.b.economy, res.b.strike_rate || 0, res.b.fours, res.b.sixes]);
+
+  } else {
+    // batter vs bowler — show side by side with different stat sets
+    const bFields = [
+      { key: 'runs', lbl: 'Total Runs' }, { key: 'balls', lbl: 'Balls Faced' },
+      { key: 'strike_rate', lbl: 'Strike Rate' }, { key: 'average', lbl: 'Average' },
+      { key: 'fours', lbl: 'Fours' }, { key: 'sixes', lbl: 'Sixes' },
+      { key: 'dot_pct', lbl: 'Dot Ball %' }, { key: 'boundary_pct', lbl: 'Boundary %' }
+    ];
+    const wFields = [
+      { key: 'wickets', lbl: 'Wickets' }, { key: 'overs', lbl: 'Overs' },
+      { key: 'economy', lbl: 'Economy' }, { key: 'average', lbl: 'Average' },
+      { key: 'runs_conceded', lbl: 'Runs Conceded' }, { key: 'strike_rate', lbl: 'Strike Rate' },
+      { key: 'dot_pct', lbl: 'Dot Ball %' }, { key: 'wicket_prob', lbl: 'Wicket Prob %' },
+      { key: 'fours', lbl: 'Fours Conceded' }, { key: 'sixes', lbl: 'Sixes Conceded' }
+    ];
+    document.getElementById('compare-cols').innerHTML =
+      `<div class="compare-col">
+        <h3>${res.a.name} (Batter)</h3>
+        ${bFields.map(f => `<div class="compare-row"><span class="lbl">${f.lbl}</span><span class="val">${res.a[f.key] ?? 'N/A'}</span></div>`).join('')}
+      </div>
+      <div class="compare-col blue">
+        <h3>${res.b.name} (Bowler)</h3>
+        ${wFields.map(f => `<div class="compare-row"><span class="lbl">${f.lbl}</span><span class="val">${res.b[f.key] ?? 'N/A'}</span></div>`).join('')}
+      </div>`;
+    if (compareChart) compareChart.destroy();
+    compareChart = null;
+    document.getElementById('compare-chart').style.display = 'none';
+    if (res.head2head && res.head2head.balls) {
+      h2hBox.style.display = 'block';
+      document.getElementById('h2h-stats').innerHTML = [
+        { val: res.head2head.balls, lbl: 'Balls Faced' },
+        { val: res.head2head.runs, lbl: 'Runs Scored' },
+        { val: res.head2head.fours, lbl: 'Fours' },
+        { val: res.head2head.sixes, lbl: 'Sixes' },
+        { val: res.head2head.dismissals, lbl: 'Dismissals' },
+        { val: res.head2head.strike_rate, lbl: 'Strike Rate' }
+      ].map(s => `<div class="stat-card"><div class="val">${s.val}</div><div class="lbl">${s.lbl}</div></div>`).join('');
+    } else {
+      h2hBox.style.display = 'block';
+      document.getElementById('h2h-stats').innerHTML = '<p style="color:#64748b;font-size:0.85rem">No head-to-head data found.</p>';
+    }
+  }
+  } catch(e) { showErr('compare-result', e); } finally { setLoading(btn, false); }
+}
+
+function renderCompare(a, b, fields) {
+  document.getElementById('compare-chart').style.display = 'block';
+  const rows = fields.map(f => {
+    const av = a[f.key] ?? 0, bv = b[f.key] ?? 0;
+    const aWin = f.higher ? av >= bv : av <= bv;
+    return `<div class="compare-row">
+      <span class="val ${aWin ? 'win' : ''}">${av}</span>
+      <span class="lbl" style="text-align:center">${f.lbl}</span>
+      <span class="val ${!aWin ? 'win' : ''}">${bv}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('compare-cols').innerHTML =
+    `<div class="compare-col">
+      <h3>${a.name}</h3>
+      ${fields.map((f, i) => { const av = a[f.key] ?? 0; const bv = b[f.key] ?? 0; const w = f.higher ? av >= bv : av <= bv;
+        return `<div class="compare-row"><span class="val ${w?'win':''}">${av}</span><span class="lbl">${f.lbl}</span></div>`; }).join('')}
+    </div>
+    <div class="compare-col blue">
+      <h3>${b.name}</h3>
+      ${fields.map((f, i) => { const av = a[f.key] ?? 0; const bv = b[f.key] ?? 0; const w = f.higher ? bv >= av : bv <= av;
+        return `<div class="compare-row"><span class="lbl">${f.lbl}</span><span class="val ${w?'win':''}">${bv}</span></div>`; }).join('')}
+    </div>`;
+}
+
+function renderCompareChart(a, b, labels, aData, bData) {
+  if (compareChart) compareChart.destroy();
+  compareChart = new Chart(document.getElementById('compare-chart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: a.name, data: aData, backgroundColor: 'rgba(245,158,11,0.7)', borderColor: '#f59e0b', borderWidth: 1 },
+        { label: b.name, data: bData, backgroundColor: 'rgba(56,189,248,0.7)', borderColor: '#38bdf8', borderWidth: 1 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#e2e8f0' } } },
+      scales: {
+        x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+        y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+      }
+    }
+  });
+}
+
+async function loadAuctionProfile() {
+  const btn = event.target;
+  setLoading(btn, true);
+  try {
+  const name = document.getElementById('auc-player').value;
+  const res = await post('/auction/profile', { name });
+  if (res.error) { showErr('auction-result', new Error(res.error)); return; }
+
+  document.getElementById('auction-result').classList.add('show');
+  document.getElementById('auction-role').innerHTML =
+    `<span class="badge badge-yellow">${res.role.join(' & ').toUpperCase()}</span>`;
+
+  const batSec = document.getElementById('auc-batter-section');
+  const bowSec = document.getElementById('auc-bowler-section');
+  batSec.style.display = 'none';
+  bowSec.style.display = 'none';
+
+  function playerTable(players, cols) {
+    return `<table style="width:100%;border-collapse:collapse;font-size:0.83rem">
+      <thead><tr>${['Name',...cols].map(c=>`<th style="text-align:left;padding:6px 8px;color:#94a3b8;border-bottom:1px solid #334155">${c}</th>`).join('')}</tr></thead>
+      <tbody>${players.map(p=>`<tr>${['name',...cols.map(c=>c.toLowerCase().replace(/ /g,'_'))].map(k=>`<td style="padding:6px 8px;border-bottom:1px solid #1e293b;color:#e2e8f0">${p[k]??'N/A'}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table>`;
+  }
+
+  if (res.batter_stats) {
+    batSec.style.display = 'block';
+    const bs = res.batter_stats;
+    document.getElementById('auc-batter-stats').innerHTML = [
+      {val:bs.runs,lbl:'Runs'},{val:bs.balls,lbl:'Balls'},{val:bs.fours,lbl:'Fours'},
+      {val:bs.sixes,lbl:'Sixes'},{val:bs.dismissals,lbl:'Dismissals'},
+      {val:bs.strike_rate,lbl:'Strike Rate'},{val:bs.average,lbl:'Average'}
+    ].map(s=>`<div class="stat-card"><div class="val">${s.val}</div><div class="lbl">${s.lbl}</div></div>`).join('');
+
+    document.getElementById('auc-similar-batters').innerHTML =
+      playerTable(res.similar_batters, ['Runs','Balls','Fours','Sixes','Strike Rate','Average']);
+
+    document.getElementById('auc-tough-bowlers').innerHTML =
+      playerTable(res.tough_bowlers, ['Balls','Runs Conceded','Fours','Sixes','Dismissals','Batter SR']);
+  }
+
+  if (res.bowler_stats) {
+    bowSec.style.display = 'block';
+    const bs = res.bowler_stats;
+    document.getElementById('auc-bowler-stats').innerHTML = [
+      {val:bs.wickets,lbl:'Wickets'},{val:bs.overs,lbl:'Overs'},{val:bs.runs_conceded,lbl:'Runs Conceded'},
+      {val:bs.economy,lbl:'Economy'},{val:bs.strike_rate??'N/A',lbl:'Strike Rate'},
+      {val:bs.fours_conceded,lbl:'Fours Conceded'},{val:bs.sixes_conceded,lbl:'Sixes Conceded'}
+    ].map(s=>`<div class="stat-card"><div class="val">${s.val}</div><div class="lbl">${s.lbl}</div></div>`).join('');
+
+    document.getElementById('auc-similar-bowlers').innerHTML =
+      playerTable(res.similar_bowlers, ['Wickets','Overs','Runs Conceded','Economy','Strike Rate','Fours Conceded','Sixes Conceded']);
+
+    document.getElementById('auc-tough-batters').innerHTML =
+      playerTable(res.tough_batters, ['Balls','Runs','Fours','Sixes','Dismissals','Strike Rate']);
+  }
+  } catch(e) { showErr('auction-result', e); } finally { setLoading(btn, false); }
+}
+
+async function predictMatchup() {
+  const btn = event.target;
+  setLoading(btn, true);
+  try {
+    const data = {
+      batter: document.getElementById('m-batter').value,
+      bowler: document.getElementById('m-bowler').value,
+      balls: document.getElementById('m-balls').value
+    };
+    const res = await post('/predict/matchup', data);
+    document.getElementById('matchup-pred').textContent = res.predicted_runs + ' runs';
+    const hist = res.historical;
+    const histDiv = document.getElementById('matchup-hist');
+    if (hist && hist.balls) {
+      histDiv.innerHTML = [
+        { val: hist.balls, lbl: 'Balls Faced' },
+        { val: hist.runs, lbl: 'Actual Runs' },
+        { val: hist.dismissals, lbl: 'Dismissals' },
+        { val: hist.strike_rate, lbl: 'Strike Rate' }
+      ].map(s => `<div class="stat-card"><div class="val">${s.val}</div><div class="lbl">${s.lbl}</div></div>`).join('');
+    } else {
+      histDiv.innerHTML = '<p style="color:#64748b;font-size:0.85rem">No historical data for this matchup.</p>';
+    }
+    document.getElementById('matchup-result').classList.add('show');
+  } catch(e) { showErr('matchup-result', e); } finally { setLoading(btn, false); }
+}
+</script>
+</body>
+</html>
